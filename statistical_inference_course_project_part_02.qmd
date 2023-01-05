@@ -1,0 +1,172 @@
+---
+title: "Statistical Inference Course Project"
+subtitle: "Part 2: Basic Inferential Data Analysis"
+author: "Lief Pagalan"
+date: today
+date-format: long
+format:
+  pdf:
+    fontsize:  10pt
+margin-top:    0.75in
+margin-right:  0.75in
+margin-bottom: 1in
+margin-left:   0.75in
+fig-width:     10
+fig-height:    7.25
+---
+
+## Overview
+
+Now in the second portion of the project, I'm going to analyze the [ToothGrowth data](https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/ToothGrowth.html) in the R datasets package.
+
+## Load Data
+
+Load the ToothGrowth data and perform some basic exploratory data analyses.
+
+```{r}
+#| output: false
+
+library(tidyverse)
+library(skimr)
+data("ToothGrowth")
+```
+
+```{r}
+#| echo: false
+
+options(width = 60)
+```
+
+The response variable is the length of odontoblasts (cells responsible for tooth growth) in 60 guinea pigs. Each animal received one of three dose levels of vitamin C (0.5, 1, and 2 mg/day) by one of two delivery methods, orange juice or ascorbic acid (a form of vitamin C and coded as VC). The data frame contains 60 observations on 3 variables.
+
+```{r}
+#| echo: false
+
+# | Variable | Type    | Description                |
+# |:---------|:--------|:---------------------------|
+# | len      | numeric | Tooth length               |
+# | supp     | factor  | Supplement type (VC or OJ) |
+# | dose     | numeric | Dose in milligrams/day     |
+# : ToothGrowth Dataset {#tbl-tooth-data}
+```
+
+## Descriptive Analysis
+
+```{r}
+skim_without_charts(ToothGrowth)
+```
+
+```{r}
+#| echo: false
+
+ToothGrowth <- mutate(ToothGrowth,
+                      dose = as.factor(format(round(dose, 2), nsmall = 1)),
+                      supp = factor(supp,
+                                    levels = c("OJ",           "VC"),
+                                    labels = c("Orange Juice", "Ascorbic Acid")))
+```
+
+```{r}
+#| label: fig-plot-dose-type
+#| fig-cap: "Odontoblasts Length by Vitaminc C Dose and Supplement Type"
+#| echo: false
+
+ggplot(ToothGrowth, aes(x = dose, y = len, colour = supp)) +
+  stat_boxplot(geom = "errorbar", width = 0.3, position = position_dodge(0.75)) +
+  geom_boxplot() +
+  geom_point(aes(colour = supp), position = position_jitterdodge(jitter.width = 0), alpha = 0.3) +
+  labs(y = "Tooth Length (mm)", colour = "Supplement Type",
+       x = "Vitaminc C Dose  (mg/day)") +
+  theme_light() + theme(legend.position="bottom")
+```
+
+## Hypothesis Testing
+
+Use confidence intervals and/or hypothesis tests to compare tooth growth by supp and dose. (Only use the techniques from class, even if there's other approaches worth considering).
+
+The t-tests is used to determine whether the means of two groups are equal. The null hypothesis is that the two means are equal, and the alternative is that they are not equal.
+
+```{r}
+#| echo: false
+
+ToothGrowth <- mutate(ToothGrowth,
+  supp = fct_recode(supp, OJ = "Orange Juice", VC = "Ascorbic Acid"))
+```
+
+### Orange Juice vs. Ascorbic Acid: 0.5 mg/day Dose Level
+
+```{r}
+(t_05 <- t.test(len ~ supp, data = ToothGrowth, subset = dose == "0.5", var.equal = TRUE))
+```
+
+### Orange Juice vs. Ascorbic Acid: 1.0 mg/day Dose Level
+
+```{r}
+(t_10 <- t.test(len ~ supp, data = ToothGrowth, subset = dose == "1.0", var.equal = TRUE))
+```
+
+### Orange Juice vs. Ascorbic Acid: 2.0 mg/day Dose Level
+
+```{r}
+(t_20 <- t.test(len ~ supp, data = ToothGrowth, subset = dose == "2.0", var.equal = TRUE))
+```
+
+### Conclusions
+
+```{r}
+#| echo: false
+  
+tbl_summary <- tibble(
+  "dose"   = c("0.5", "1.0", "2.0"),
+  "len_oj" = c(t_05$estimate[1], t_10$estimate[1], t_20$estimate[1]),
+  "len_aa" = c(t_05$estimate[2], t_10$estimate[2], t_20$estimate[2]),
+  "t_test" = c(t_05$statistic[[1]],  t_10$statistic[[1]],  t_20$statistic[[1]]),
+  "p_min"  = c(t_05$conf.int[[1]],   t_10$conf.int[[1]],   t_20$conf.int[[1]]),
+  "p_max"  = c(t_05$conf.int[[2]],   t_10$conf.int[[2]],   t_20$conf.int[[2]]),
+  "pvalue" = c(t_05$p.value, t_10$p.value, t_20$p.value),
+  "interp" = c("Difference in Means", "Difference in Means", "No Difference in Means")) %>% 
+  mutate(t_test = format(round(t_test, 2),  nsmall = 2),
+         p_min  = format(round(p_min, 2),   nsmall = 2),
+         p_max  = format(round(p_max, 2),   nsmall = 2),
+         pvalue = format(round(pvalue, 4),  nsmall = 4)) %>% 
+  mutate(t_test = paste0(t_test, " (", p_min, ", ", p_max, ")")) %>% 
+  select(-c(p_min, p_max))
+```
+
+At lower dose levels of vitamin C, 0.5 and 1.0 mg/day, orange juice was on average more effective than ascorbic acid at increasing tooth length (p-values: < 0.01). However, at the 2.0 mg/day dose level there was no difference in average tooth length between orange juice or ascorbic acid (p-value: 0.96). (See @tbl-ttest.)
+
+```{r}
+#| label: tbl-ttest
+#| tbl-cap: "T-Test for Difference in Group Means"
+#| echo: false
+#| output: true
+
+kableExtra::kbl(tbl_summary, col.names = c("Dose (mg/day)",
+                               "Orange Juice",
+                               "Ascorbic Acid",
+                               "T-Test Statistic (95% CI)",
+                               "P-Value",
+                               "Intepretation"),
+    booktabs = T) %>%
+  kableExtra::add_header_above(c(" " = 1, "Tooth Length (mm)" = 2, " " = 1, " " = 1, " " = 1))
+```
+
+### Assumptions
+
+The assumption for the t-test is that both groups are sampled from normal distributions with equal variances. There were no significant differences in tooth length variance between orange juice and ascorbic acid for each dose level (see @tbl-variance), meeting the equal variance requirement of the t-test. Equal variance was tested using the F-test, where $H_0: \sigma_A^2 = \sigma_B^2$ (i.e., variances are equal) and $H_a: \sigma_A^2 \neq \sigma_B^2$ (i.e., variances are not equal).
+
+| Vitamin C Dose (mg/day) | Ratio of Variance (95% CI) | P-Value | Interpretation |
+|------------------------:|---------------------------:|--------:|:---------------|
+|                     0.5 |         2.64 (0.65, 10.61) |    0.16 | Equal variance |
+|                     1.0 |          2.42 (0.60, 9.73) |    0.20 | Equal variance |
+|                     2.0 |          0.31 (0.07, 1.23) |    0.09 | Equal variance |
+
+: F-Test for Equal Variance {#tbl-variance}
+
+```{r}
+#| include: false
+
+var.test(len ~ supp, data = ToothGrowth, subset = dose == "0.5")
+var.test(len ~ supp, data = ToothGrowth, subset = dose == "1.0")
+var.test(len ~ supp, data = ToothGrowth, subset = dose == "2.0")
+```

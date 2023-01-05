@@ -1,0 +1,146 @@
+---
+title: "Statistical Inference Course Project"
+subtitle: "Part 1: Simulation Exercise"
+author: "Lief Pagalan"
+date: today
+date-format: long
+format:
+  pdf:
+    fontsize:  10pt
+margin-top:    0.75in
+margin-right:  0.75in
+margin-bottom: 1in
+margin-left:   0.75in
+fig-width:     10
+fig-height:    3.6
+---
+
+## Overview
+
+In this project, I investigate the exponential distribution in R and compare it with the Central Limit Theorem. The exponential distribution is simulated in R with `rexp(n, lambda)` where $\lambda$ is the rate parameter. The mean of the exponential distribution is $1/\lambda$ and the standard deviation is also $1/\lambda$. I've set $\lambda = 0.2$ for all of the simulations, and I investigate the distribution of averages of 40 exponentials across 1,000 simulations.
+
+## Simulations
+
+Load libraries and set a seed for reproducibility.
+
+```{r}
+#| output: false
+
+library(tidyverse)
+library(kableExtra)
+set.seed(12345)
+```
+
+Define the rate parameter as $\lambda = 0.2$. Then set the number of exponentials to 40 and the number of simulations to 1,000.
+
+```{r}
+lambda <-  0.2
+n      <-   40
+sim    <- 1000
+```
+
+Simulate the 40 exponentials across 1,000 simulations.
+
+```{r}
+means <- NULL
+for (i in 1:sim) means[i] <- mean(rexp(n, lambda))
+```
+
+Mean of sampling distribution of sample means vs. mean of the exponential distribution.
+
+```{r}
+tbl_summary <- tibble(Distribution = c("Sampling Distribution", "Exponential Distribution"),
+                      Mean         = c(mean(means),             1/lambda))
+```
+
+Variance of sampling distribution of sample means vs. variance of the exponential distribution.
+
+```{r}
+#| warning: false
+
+tbl_summary <- left_join(tbl_summary,
+  tibble(Distribution         = c("Sampling Distribution",  "Exponential Distribution"),
+         Variance             = c(sd(means)^2,              ((1/lambda)/sqrt(n))^2),
+         `Standard Deviation` = c(sd(means),                 (1/lambda)/sqrt(n))))
+```
+
+```{r}
+#| label: tbl-summary
+#| tbl-cap: "Mean and Variance of Sampling Distribution vs. Exponential Distribution"
+#| echo: false
+
+kbl(tbl_summary, booktabs = T, digits = 4, format.args = list(nsmall = "4")) %>%
+  kable_styling(position = "center")
+```
+
+## Sample Mean versus Theoretical Mean
+
+```{r}
+#| label: fig-plot-mean
+#| fig-cap: "Sampling Distribution Mean vs. Exponential Distribution Mean"
+#| warning: false
+#| echo: false
+
+ggplot(as_tibble_col(means), aes(x = means)) +
+  geom_histogram(bins = 100, color = "gray50", fill = "white") +
+  geom_segment(aes(x = Mean, y = 0, xend = Mean, yend = Inf,
+    colour = fct_reorder(Distribution, Mean)), data = tbl_summary %>%
+      mutate(Distribution = paste0(Distribution, " (",format(round(Mean, 2),
+                                                             nsmall = 2), ")"))) +
+  scale_color_manual(values = c("red", "blue")) + xlim(0, NA) +
+  labs(y = "Frequency", colour = "Mean",
+       x = "Sample Means (n = 40, simulations = 1,000)") +
+  theme_light() + theme(legend.position="bottom")
+```
+
+@fig-plot-mean shows the sampling distribution of the sample means of 40 exponentials across 1,000 simulations. The average of the sample means was `r round(filter(tbl_summary, Distribution == "Sampling Distribution")[["Mean"]], 2)`, which approximates the theoretical mean of the exponential distribution, `r format(round(filter(tbl_summary, Distribution == "Exponential Distribution")[["Mean"]], 2), nsmall = 2)` (see @tbl-summary). As the number of simulations increase, the average of the sample means will tend towards the theoretical distribution mean.
+
+## Sample Variance versus Theoretical Variance
+
+```{r}
+#| label: fig-plot-sd
+#| fig-cap: "Sampling Distribution vs. Exponential Distribution"
+#| warning: false
+#| echo: false
+
+ggplot(as_tibble_col(means), aes(x = means)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 100, color = "gray50", fill = "white") +
+  geom_density(aes(colour = "Sampling Distribution")) +
+  stat_function(fun = dexp, args = list(rate = lambda),
+                aes(colour = "Exponential Distribution (Rate 0.2)")) +
+  scale_color_manual(
+    name = "Distribution",
+    breaks = c("Sampling Distribution", "Exponential Distribution (Rate 0.2)"),
+    values = c("Sampling Distribution" = "red", "Exponential Distribution (Rate 0.2)" = "blue")) +
+  labs(y = "Density", x = "Sample Means (n = 40, simulations = 1,000)") +
+  xlim(0, NA) + theme_light() + theme(legend.position="bottom")
+```
+
+@fig-plot-sd shows the difference in shape between the sampling distribution (red) and the theoretical exponential distribution (blue). Despite the difference in distribution shapes, the variance of the sampling distribution of sample means is `r format(round(filter(tbl_summary, Distribution == "Sampling Distribution")[["Variance"]], 2), nsmall = 2)` with standard deviation `r format(round(filter(tbl_summary, Distribution == "Sampling Distribution")[["Standard Deviation"]], 2), nsmall = 2)`, which closely approximates the theoretical exponential distribution variance `r format(round(filter(tbl_summary, Distribution == "Exponential Distribution")[["Variance"]], 2), nsmall = 2)` with standard deviation `r format(round(filter(tbl_summary, Distribution == "Exponential Distribution")[["Standard Deviation"]], 2), nsmall = 2)` (see see @tbl-summary). As the number of simulations increase, the variance of the sampling distribution will tend towards the theoretical distribution variance.
+
+## Sampling, Exponential, and Normal Distributions
+
+```{r}
+#| label: fig-plot-normal
+#| fig-cap: "Sampling Distribution vs. Exponential Distribution vs. Normal Distribution"
+#| warning: false
+#| echo: false
+
+ggplot(as_tibble_col(means), aes(x = means)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 100, color = "gray50", fill = "white") +
+  geom_density(aes(colour = "Sampling Distribution")) +
+  stat_function(fun = dexp, args = list(rate = lambda),
+                aes(colour = "Exponential Distribution (Rate 0.2)")) +
+  stat_function(fun = dnorm, args = list(mean = mean(means), sd = 1),
+                aes(colour = "Normal Distribution")) +
+  scale_color_manual(
+    name = "Distribution",
+    breaks = c("Sampling Distribution", "Exponential Distribution (Rate 0.2)", "Normal Distribution"),
+    values = c("Sampling Distribution" = "red",
+               "Exponential Distribution (Rate 0.2)" = "blue",
+               "Normal Distribution" = "purple3")) +
+  labs(y = "Density", x = "Sample Means (n = 40, simulations = 1,000)") +
+  xlim(0, NA) + theme_light() + theme(legend.position="bottom")
+```
+
+@fig-plot-normal shows that the sampling distribution of sample means (red) approximates the normal distribution (purple) with $n \geq 30$. This demonstrate the central limit theorem, which states that if you have a population with defined mean $\mu$ and standard deviation $\sigma$, and you take *sufficiently large random samples from the population with replacement multiple times*, then the sampling distribution of the *sample means* will be approximately normally distributed regardless of the shape of the original population distribution. As sample size $n$ increases, the sampling distribution of sample means will tend towards the normal distribution.
