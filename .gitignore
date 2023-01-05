@@ -22,7 +22,7 @@
 .Rproj.user/
 
 # R scripts
-.R
+*.R
 
 # produced vignettes
 vignettes/*.html
